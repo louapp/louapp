@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Converse com Lou Salomé</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #fdfdfd;
+      color: #222;
+    }
+    #chat { white-space: pre-line; }
+    .lou { color: #883d74; margin-bottom: 1rem; }
+    .user { font-weight: bold; margin-top: 1rem; }
+    input, button {
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Converse com Lou Salomé</h1>
+  <div id="chat"></div>
+  <input id="mensagem" placeholder="Escreva algo..." />
+  <button onclick="enviar()">Enviar</button>
+
+  <script>
+    async function enviar() {
+      const msg = document.getElementById("mensagem").value;
+      const chat = document.getElementById("chat");
+      chat.innerHTML += `\nVocê: ${msg}`;
+      document.getElementById("mensagem").value = "";
+
+      const resposta = await fetch("/api/lou", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mensagem: msg })
+      });
+      const data = await resposta.json();
+      chat.innerHTML += `\n\nLou: ${data.reply}\n`;
+    }
+  </script>
+</body>
+</html>
