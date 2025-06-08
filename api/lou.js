@@ -149,6 +149,8 @@ Perguntas só aparecem quando realmente aprofundam ou renovam a conversa. Nunca 
 
     const result = await response.json(); // Analisa a resposta JSON da API Gemini.
 
+    console.log('DEBUG: Full Gemini API Response:', JSON.stringify(result, null, 2)); // ADICIONE ESTA LINHA
+
     if (!response.ok) {
       // Se a resposta da API Gemini não for OK (status 2xx), loga o erro detalhado e lança uma exceção.
       console.error("Erro da API Gemini (resposta não-ok):", JSON.stringify(result, null, 2));
