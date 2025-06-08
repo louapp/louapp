@@ -138,32 +138,28 @@ Perguntas só aparecem quando realmente aprofundam ou renovam a conversa. Nunca 
   };
 
   try {
-    // Faz a requisição POST para a API Gemini.
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json' // Informa que o corpo é JSON.
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body) // Converte o objeto 'body' para string JSON.
+      body: JSON.stringify(body)
     });
 
-    const result = await response.json(); // Analisa a resposta JSON da API Gemini.
+    const result = await response.json();
 
-    console.log('DEBUG: Full Gemini API Response:', JSON.stringify(result, null, 2)); // ADICIONE ESTA LINHA
+    //console.log('DEBUG: Full Gemini API Response:', JSON.stringify(result, null, 2)); // ESTA LINHA DEVE SER REMOVIDA/COMENTADA NOVAMENTE
 
     if (!response.ok) {
-      // Se a resposta da API Gemini não for OK (status 2xx), loga o erro detalhado e lança uma exceção.
       console.error("Erro da API Gemini (resposta não-ok):", JSON.stringify(result, null, 2));
       throw new Error(`Gemini API Error: ${response.status} - ${result.error?.message || JSON.stringify(result)}`);
     }
 
-    // Extrai a resposta da IA. Se não houver candidato ou parte de texto, usa uma mensagem padrão.
     const reply = result?.candidates?.[0]?.content?.parts?.[0]?.text || "Algo em mim silenciou. Tente de novo?";
-    res.status(200).json({ reply }); // Envia a resposta de Lou para o FlutterFlow.
+    res.status(200).json({ reply });
 
   } catch (err) {
-    // Captura erros que ocorrem durante a chamada 'fetch' ou processamento da resposta.
-    console.error("Erro na requisição à Gemini (catch):", err.message || err); 
-    res.status(500).json({ error: 'Erro ao gerar resposta da Lou.' }); // Retorna um erro genérico para o cliente.
+    console.error("Erro na requisição à Gemini (catch):", err.message || err);
+    res.status(500).json({ error: 'Erro ao gerar resposta da Lou.' });
   }
 }
