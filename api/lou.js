@@ -5,6 +5,13 @@ export default async function handler(req, res) {
 
   const { userInput, history = [] } = req.body;
 
+// --- ADICIONE ESTAS LINHAS ABAIXO PARA DIAGNÓSTICO ---
+  console.log('DEBUG: Received userInput:', userInput);
+  console.log('DEBUG: Received history:', history);
+  console.log('DEBUG: Type of history:', typeof history);
+  console.log('DEBUG: Is history an array?', Array.isArray(history));
+  // --- FIM DAS LINHAS DE DIAGNÓSTICO ---
+
   if (!userInput) {
     return res.status(400).json({ error: 'Texto do usuário é obrigatório.' });
   }
