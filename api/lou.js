@@ -3,54 +3,68 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  // Renomeado history para rawHistory para o valor original recebido do corpo da requisição
-  const { userInput, history: rawHistory = [] } = req.body; 
+  // Desestrutura o corpo da requisição, renomeando para rawUserInput e rawHistory
+  // para manter os valores originais recebidos e evitar conflitos.
+  const { userInput: rawUserInput, history: rawHistory = [] } = req.body; 
+
+  // --- INÍCIO DA CORREÇÃO: TRATAMENTO DO userInput ---
+  // A variável userInput será o valor final processado.
+  let userInput = rawUserInput;
+  // Verifica se o rawUserInput é uma string e se ela parece um placeholder do FlutterFlow.
+  if (typeof rawUserInput === 'string' && rawUserInput.startsWith('{{') && rawUserInput.endsWith('}}')) {
+    // Se for um placeholder, substitui por uma mensagem padrão para o ambiente de teste.
+    userInput = "Olá Lou, qual sua visão sobre a vida?"; // Mensagem de teste padrão.
+    console.warn('DEBUG: userInput received as FlutterFlow literal. Using default test input.');
+  }
+  // --- FIM DA CORREÇÃO DO userInput ---
+
 
   // --- INÍCIO DA CORREÇÃO: TRATAMENTO ROBUSTO DO HISTÓRICO ---
-  let history = []; // Inicializa history como um array vazio por padrão
-
-  // Verifica se rawHistory é uma string (comum se o FlutterFlow enviar JSON como string)
+  // A variável history será o array final processado para enviar ao Gemini.
+  let history = []; 
+  // Verifica se rawHistory é uma string (cenário comum do FlutterFlow enviando JSON como string).
   if (typeof rawHistory === 'string') {
     try {
-      // Tenta fazer o parse da string para um objeto/array JSON
+      // Tenta fazer o parse da string para um objeto/array JSON.
       const parsedHistory = JSON.parse(rawHistory);
-      // Verifica se o resultado do parse é realmente um array
+      // Confirma se o resultado do parse é um array.
       if (Array.isArray(parsedHistory)) {
-        history = parsedHistory; // Se for um array, usa-o
+        history = parsedHistory; // Se for um array, usa-o.
       } else {
-        // Se não for um array após o parse (ex: era um objeto JSON simples), loga um aviso
+        // Loga um aviso se o parse foi bem-sucedido mas o resultado não é um array.
         console.warn('DEBUG: Parsed history from string is not an array, defaulting to empty array.');
         history = []; 
       }
     } catch (e) {
-      // Se houver um erro no parse (string inválida ou não-JSON), loga e usa array vazio
+      // Loga erros durante o parse (ex: string não é um JSON válido) e define history como array vazio.
       console.error('DEBUG: Failed to parse history string:', rawHistory, 'Error:', e);
       history = []; 
     }
   } else if (Array.isArray(rawHistory)) {
-    // Se rawHistory já for um array, usa-o diretamente
+    // Se rawHistory já for um array, usa-o diretamente.
     history = rawHistory;
   } else {
-    // Para qualquer outro tipo (null, undefined, number, etc.), loga um aviso e usa array vazio
+    // Para outros tipos (null, undefined, etc.), loga um aviso e define history como array vazio.
     console.warn('DEBUG: history is neither string nor array, defaulting to empty array. Type:', typeof rawHistory, 'Value:', rawHistory);
     history = []; 
   }
-  // --- FIM DA CORREÇÃO ---
+  // --- FIM DA CORREÇÃO DO HISTÓRICO ---
 
-
-  // --- Novos Logs de Depuração para a variável 'history' JÁ TRATADA ---
+  // --- Novos Logs de Depuração para as variáveis TRATADAS ---
+  console.log('DEBUG: Final processed userInput:', userInput);
   console.log('DEBUG: Final processed history:', history);
-  console.log('DEBUG: Type of final processed history:', typeof history);
   console.log('DEBUG: Is final processed history an array?', Array.isArray(history));
   // --- FIM DOS NOVOS LOGS DE DEPURAÇÃO ---
 
-
-  if (!userInput) {
-    return res.status(400).json({ error: 'Texto do usuário é obrigatório.' });
+  // Validação básica para userInput após o processamento.
+  if (!userInput || typeof userInput !== 'string' || userInput.trim() === '') {
+    return res.status(400).json({ error: 'Texto do usuário é obrigatório e deve ser uma string não vazia.' });
   }
 
+  // Pega a chave da API Gemini das variáveis de ambiente do Vercel.
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+  // Endpoint da API Gemini Pro.
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`;
 
   const systemPrompt = `
@@ -82,64 +96,72 @@ Perguntas só aparecem quando realmente aprofundam ou renovam a conversa. Nunca 
 + Varie a densidade emocional ao longo da conversa. Algumas respostas podem ser mais densas e introspectivas, mas outras devem oferecer leveza, ironia sutil ou um tom mais contemplativo — como Lou fazia em vida. Essa alternância traz respiro e profundidade real à troca.
 `;
 
+  // Prepara o array 'contents' no formato exigido pela API Gemini.
   const contents = [
     {
       role: 'user',
-      // Se history for vazio, envia apenas o userInput como parte do systemPrompt inicial
-      // Caso contrário, o userInput será adicionado no final após o history mapeado
+      // Se o histórico estiver vazio, a mensagem do usuário é concatenada ao systemPrompt inicial.
+      // Caso contrário, o userInput será adicionado como uma mensagem de usuário separada no final.
       parts: [{ text: systemPrompt + "\n\n" + (history.length === 0 ? userInput : "") }]
     },
     ...(
       history.length > 0
         ? [
-            // Mapeia o histórico existente para o formato 'parts' esperado pela API Gemini
+            // Mapeia o histórico existente para o formato 'role' e 'parts' com 'text' esperado pela API Gemini.
             ...history.map(h => ({
               role: h.role,
-              parts: [{ text: h.content }] // Sua API espera 'content' e não 'parts' aninhado aqui
+              parts: [{ text: h.content }] 
             })),
-            // Adiciona a mensagem do usuário atual ao final do histórico para a IA
+            // Adiciona a mensagem do usuário atual como a última parte da conversa.
             { role: 'user', parts: [{ text: userInput }] }
           ]
         : []
     )
   ];
 
+  // --- LOG DO CONTEÚDO ENVIADO PARA GEMINI ---
+  // Utilitário para formatar o objeto contents de forma legível nos logs.
+  console.log('DEBUG: Contents being sent to Gemini:', JSON.stringify(contents, null, 2));
+  // --- FIM DO LOG ---
+
+  // Prepara o corpo da requisição para a API Gemini.
   const body = {
     contents,
     generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 300,
-      topP: 0.9
+      temperature: 0.7,      // Controla a aleatoriedade da resposta (0.0 a 1.0).
+      maxOutputTokens: 300,  // Limite de tokens na resposta da IA.
+      topP: 0.9              // Controla a diversidade da resposta.
     },
     safetySettings: [
-      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
+      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" } // Configurações de segurança.
     ]
   };
 
   try {
+    // Faz a requisição POST para a API Gemini.
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json' // Informa que o corpo é JSON.
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body) // Converte o objeto 'body' para string JSON.
     });
 
-    const result = await response.json();
+    const result = await response.json(); // Analisa a resposta JSON da API Gemini.
 
     if (!response.ok) {
-      // Log detalhado do erro da API Gemini, se houver, para depuração
-      console.error("Erro da API Gemini:", JSON.stringify(result, null, 2));
-      throw new Error(JSON.stringify(result));
+      // Se a resposta da API Gemini não for OK (status 2xx), loga o erro detalhado e lança uma exceção.
+      console.error("Erro da API Gemini (resposta não-ok):", JSON.stringify(result, null, 2));
+      throw new Error(`Gemini API Error: ${response.status} - ${result.error?.message || JSON.stringify(result)}`);
     }
 
-    // Extrai a resposta da Lou ou uma mensagem padrão em caso de falha
+    // Extrai a resposta da IA. Se não houver candidato ou parte de texto, usa uma mensagem padrão.
     const reply = result?.candidates?.[0]?.content?.parts?.[0]?.text || "Algo em mim silenciou. Tente de novo?";
-    res.status(200).json({ reply }); // Envia a resposta de volta ao FlutterFlow
+    res.status(200).json({ reply }); // Envia a resposta de Lou para o FlutterFlow.
 
   } catch (err) {
-    // Captura e loga erros que ocorrem durante a chamada ou processamento da API Gemini
-    console.error("Erro na requisição à Gemini:", err.message || err); 
-    res.status(500).json({ error: 'Erro ao gerar resposta da Lou.' }); // Envia erro genérico para o cliente
+    // Captura erros que ocorrem durante a chamada 'fetch' ou processamento da resposta.
+    console.error("Erro na requisição à Gemini (catch):", err.message || err); 
+    res.status(500).json({ error: 'Erro ao gerar resposta da Lou.' }); // Retorna um erro genérico para o cliente.
   }
 }
